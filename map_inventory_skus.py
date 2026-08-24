@@ -20,6 +20,7 @@ import csv
 import math
 import re
 import sys
+from copy import copy
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -56,10 +57,15 @@ FX = {"rmb": 6.8, "hkd": 7.8317, "usd": 1.0}
 
 FILL_INFERRED = PatternFill("solid", fgColor="FFF2CC")
 FILL_REVIEW = PatternFill("solid", fgColor="FCE4D6")
-BODY_FONT = Font(size=9)
-HEADER_FONT = Font(size=9, bold=True)
-TITLE_FONT = Font(size=12, bold=True)
-SECTION_FONT = Font(size=9, bold=True)
+
+# One typeface for the whole output: Arial 9, black. Bold is the only variation.
+FONT_NAME = "Arial"
+FONT_SIZE = 9
+FONT_COLOR = "FF000000"
+BODY_FONT = Font(name=FONT_NAME, size=FONT_SIZE, color=FONT_COLOR)
+HEADER_FONT = Font(name=FONT_NAME, size=FONT_SIZE, color=FONT_COLOR, bold=True)
+TITLE_FONT = HEADER_FONT
+SECTION_FONT = HEADER_FONT
 
 # Misspellings in the source lists that would otherwise hide a colour token.
 SPELLING_ALIASES = {"burshed": "brushed", "seelve": "sleeve"}
@@ -545,6 +551,31 @@ def write_buildable_sheet(wb, parts, labels, sku_colors, warnings):
             row += 1
 
 
+def normalise_fonts(ws):
+    """Force every cell in the sheet to Arial 9 black.
+
+    Cells carried over from the source workbook keep whatever the original list used
+    (mixed typefaces, 12pt titles, coloured text), so sweep the whole sheet at the end.
+    Bold is preserved; nothing else is."""
+    for row in ws.iter_rows():
+        for cell in row:
+            bold = bool(cell.font and cell.font.bold)
+            try:
+                cell.font = HEADER_FONT if bold else BODY_FONT
+            except AttributeError:
+                pass  # merged-range continuation cell - handled below
+
+
+def set_default_font(wb):
+    """Point the workbook's default font at Arial 9 black.
+
+    Two kinds of cell never carry a style of their own: the continuation cells inside a
+    merged block (openpyxl drops any style set on them when it writes the file) and any
+    cell the user types into later. Both fall back to font 0, which in the source lists
+    is 12pt Chinese. openpyxl exposes no public setter for it."""
+    wb._fonts[0] = copy(BODY_FONT)
+
+
 # --------------------------------------------------------------------------------
 def process(family):
     labels = read_skus(family.sku_csv)
@@ -574,6 +605,10 @@ def process(family):
     write_annotations(ws, parts)
     write_legend(ws, last_row + 3, family, labels, rules)
     write_buildable_sheet(wb, parts, labels, sku_colors, warnings)
+
+    set_default_font(wb)
+    for sheet in wb.worksheets:
+        normalise_fonts(sheet)
 
     OUTPUTS.mkdir(exist_ok=True)
     wb.save(family.output)

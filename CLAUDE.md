@@ -51,6 +51,11 @@ and a legend below the totals. Every original formula, fill, number format and t
 block are preserved — the script shifts formulas with `openpyxl`'s `Translator` rather than
 rebuilding the sheet.
 
+All text is **Arial 9, black**, bold being the only variation (title, headers, legend
+headings). The source lists mix typefaces and sizes, so the script sweeps every cell at the end
+and also resets the workbook's default font — merged-range continuation cells and any cell you
+type into later fall back to that default rather than carrying a style of their own.
+
 Cell fills in the SKU column carry the confidence:
 
 | Fill | Meaning |
